@@ -76,7 +76,13 @@ impl FileSystem for NativeFs {
             files.push(File {
                 id: full_path.strip_prefix(&self.root.clone()).unwrap().to_string(),
                 name: entry.file_name().to_string_lossy().to_string(),
-                mime_type: if entry.metadata().unwrap().is_dir() {Some("directory".to_string())} else {Some("text/plain".to_string())}
+                mime_type: if entry.metadata().unwrap().is_dir() {
+                    Some("directory".to_string())
+                } else if entry.metadata().unwrap().is_symlink() {
+                    Some("symlink".to_string())
+                } else {
+                    Some("text/plain".to_string())
+                }
             });
         }
         Ok(files)
