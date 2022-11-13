@@ -1,78 +1,150 @@
-use crate::interfaces::filesystem::{FileSystem, ObjectId, File, Metadata};
-use serde::{Serialize, Deserialize};
+// extern crate hyper;
+// extern crate hyper_rustls;
+extern crate google_drive3 as drive3;
+use async_trait::async_trait;
+use drive3::api::File as GoogleDriveFile;
+use drive3::oauth2::storage::{TokenStorage, TokenInfo};
+use serde_json::json;
 
-#[derive(Debug, Serialize, Deserialize)]
+use std::future::Future;
+use std::pin::Pin;
+use crate::interfaces::filesystem::{FileSystem, ObjectId, File, Metadata, self};
+use hyper::client::HttpConnector;
+use hyper_rustls::HttpsConnector;
+use drive3::{DriveHub, oauth2, hyper, hyper_rustls};
+use drive3::oauth2::authenticator_delegate::{DefaultInstalledFlowDelegate, InstalledFlowDelegate};
+
 pub struct GoogleDrive {
-    access_token: String
+    hub: DriveHub<HttpsConnector<HttpConnector>>,
+}
+
+async fn browser_user_url(url: &str, need_code: bool) -> Result<String, String> {
+    open::that(url).expect("An error occurred when trying to open web browser");
+    let def_delegate = DefaultInstalledFlowDelegate;
+    def_delegate.present_user_url(url, need_code).await
+}
+
+#[derive(Copy, Clone)]
+struct InstalledFlowBrowserDelegate;
+
+impl InstalledFlowDelegate for InstalledFlowBrowserDelegate {
+    fn present_user_url<'a>(
+        &'a self,
+        url: &'a str,
+        need_code: bool,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
+        Box::pin(browser_user_url(url, need_code))
+    }
+}
+
+struct TokenStorageStrategy {}
+
+#[async_trait]
+impl TokenStorage for TokenStorageStrategy {
+    async fn set(&self, scopes: &[&str], token: TokenInfo) -> anyhow::Result<()> {
+        let path = format!("./sandbox/google-drive/{}", scopes.join(".").replace("/", "0x2F").replace(":", "0x3A"));
+        println!("Writing token to {}", path);
+        let contents = json!(&token);
+        dbg!(&contents);
+        std::fs::write(path, contents.to_string())?;
+        Ok(())
+    }
+
+    async fn get(&self, target_scopes: &[&str]) -> Option<TokenInfo> {
+        let path = format!("./sandbox/google-drive/{}", target_scopes.join(".").replace("/", "0x2F").replace(":", "0x3A"));
+        println!("Fetching token from {}", path);
+
+        let contents_result = std::fs::read(path);
+        if contents_result.is_err() { return None }
+
+        let contents = contents_result.unwrap();
+
+        let token_str = std::str::from_utf8(&contents);
+        if token_str.is_err() { return None }
+
+        let token: TokenInfo = serde_json::from_str(token_str.unwrap()).expect("Unable to serialize google drive tokens");
+        
+        Some(token)
+    }
 }
 
 impl GoogleDrive {
-    pub fn new(access_token: String) -> Result<GoogleDrive, Box<dyn std::error::Error>> {
-        Ok(GoogleDrive { access_token })
+    pub async fn new() -> Result<GoogleDrive, Box<dyn std::error::Error>> {
+        let secret = oauth2::read_application_secret("./sandbox/client.json").await.unwrap();
+
+        let storage = Box::new(TokenStorageStrategy {});
+
+        let auth = oauth2::InstalledFlowAuthenticator::builder(
+            secret,
+            oauth2::InstalledFlowReturnMethod::HTTPRedirect
+        ).with_storage(storage).flow_delegate(Box::new(InstalledFlowBrowserDelegate)).build().await.unwrap();
+
+        let hub = DriveHub::new(
+            hyper::Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().enable_http2().build()),
+                auth);
+
+        Ok(GoogleDrive { hub })
     }
 }
 
+impl From<google_drive3::api::File> for filesystem::File {
+    fn from(file: GoogleDriveFile) -> Self {
+        File { id: file.id.unwrap(), name: file.name.unwrap(), mime_type: file.mime_type }
+    }
+}
+
+#[async_trait]
 impl FileSystem for GoogleDrive {
-    fn read_file(&self, object_id: ObjectId) -> Result<Vec<u8>, Box<dyn std::error::Error>>
+    async fn read_file(&self, object_id: ObjectId) -> Result<Vec<u8>, Box<dyn std::error::Error>>
     {
-        let client = reqwest::blocking::Client::new();
-
-        let res = client.get(
-            "https://www.googleapis.com/drive/v3/files/".to_string() +
-            object_id.as_str() + "?alt=media").header(
-                "Authorization", 
-                "Bearer ".to_string() + self.access_token.as_str()).send()?;
-
-        Ok(res.bytes().unwrap().to_vec())
-    }
-
-    fn write_file(&self, object_id: ObjectId, content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn write_file(&self, object_id: ObjectId, content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn rename(&self, object_id: ObjectId, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
+    async fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn rename(&self, object_id: ObjectId, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn create(&self, parent_id: ObjectId, file: File) -> Result<(), Box<dyn std::error::Error>> {
+    async fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn list_folder_content(&self, object_id: ObjectId) -> Result<Vec<File>, Box<dyn std::error::Error>> {
-        let file = File {
-            id: String::from(""),
-            name: object_id.to_string(),
-            mime_type: "file".to_string()
-        };
-        Ok(vec![file])
+    async fn create(&self, parent_id: ObjectId, file: File) -> Result<(), Box<dyn std::error::Error>> {
+        todo!()
     }
 
-    fn get_metadata(&self, object_id: ObjectId) -> Result<Metadata, Box<dyn std::error::Error>> {
+    async fn list_folder_content(&self, object_id: ObjectId) -> Result<Vec<File>, Box<dyn std::error::Error>> {
+        let response = self.hub.files().list().q(format!("'{}' in parents", object_id.to_string()).as_str()).doit().await?;
+        
+        let files: Vec<File> = response.1.files.unwrap().iter().map(|file| file.to_owned().into()).collect();
+        
+        Ok(files)
+    }
+
+    async fn get_metadata(&self, object_id: ObjectId) -> Result<Metadata, Box<dyn std::error::Error>> {
         todo!()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::providers::google_drive;
     use crate::interfaces::filesystem::{FileSystem, ObjectId};
-    use crate::read_token;
 
-    #[test]
-    fn oauth_request() {
-        let token = read_token();
-        let google_client = google_drive::GoogleDrive::new(token);
-        let file_id = ObjectId::new("1YGx_HIdACC78G-eb7ydVoqyRixg_JNlC".to_string(), "text/plain".to_string());
-        assert!(google_client.is_ok());
-        let file = google_client.unwrap().read_file(file_id);
-        assert!(file.is_ok());
+    use super::GoogleDrive;
+
+    #[tokio::test]
+    async fn connect_and_list_files() {
+        let drive = GoogleDrive::new().await.unwrap();
+        let object_id = ObjectId::new("root".to_string(), "unknown".to_string());
+        let result = drive.list_folder_content(object_id).await.unwrap();
+        dbg!(result);
     }
 }

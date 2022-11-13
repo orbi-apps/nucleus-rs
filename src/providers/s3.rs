@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use eyre::Result;
 use s3::{creds::Credentials, bucket::Bucket};
 use serde::{Serialize, Deserialize};
@@ -27,8 +28,9 @@ impl S3 {
     }
 }
 
+#[async_trait]
 impl FileSystem for S3 {
-    fn read_file(&self, object_id: ObjectId) -> Result<Vec<u8>, Box<dyn std::error::Error>>
+    async fn read_file(&self, object_id: ObjectId) -> Result<Vec<u8>, Box<dyn std::error::Error>>
     {
         let mut bucket = Bucket::new(
             self.bucket.as_str(),
@@ -47,19 +49,19 @@ impl FileSystem for S3 {
         Ok(val.bytes().to_vec())
     }
 
-    fn write_file(&self, object_id: ObjectId, content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+    async fn write_file(&self, object_id: ObjectId, content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn create(&self, parent_id: ObjectId, file: File) -> Result<(), Box<dyn std::error::Error>> {
+    async fn create(&self, parent_id: ObjectId, file: File) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    fn rename(&self, object_id: ObjectId, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
+    async fn rename(&self, object_id: ObjectId, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
         let path = match object_id.to_string().strip_prefix("/") {
             Some(x) => x.to_string(),
             None => object_id.to_string()
@@ -88,11 +90,11 @@ impl FileSystem for S3 {
         Ok(())
     }
 
-    fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
-    fn list_folder_content(&self, object_id: ObjectId) -> Result<Vec<File>, Box<dyn std::error::Error>> {
+    async fn list_folder_content(&self, object_id: ObjectId) -> Result<Vec<File>, Box<dyn std::error::Error>> {
         let path = match object_id.to_string().strip_prefix("/") {
             Some(x) => x.to_string(),
             None => object_id.to_string()
@@ -132,7 +134,7 @@ impl FileSystem for S3 {
                         files.push(File {
                             id: path.to_string() + "/" + &name,
                             name: name.to_string(),
-                            mime_type: mime_type.to_string()
+                            mime_type: Some(mime_type.to_string())
                         })
                     },
                     None => ()
@@ -146,7 +148,7 @@ impl FileSystem for S3 {
         Ok(files)
     }
 
-    fn get_metadata(&self, object_id: ObjectId) -> Result<crate::interfaces::filesystem::Metadata, Box<dyn std::error::Error>> {
+    async fn get_metadata(&self, object_id: ObjectId) -> Result<crate::interfaces::filesystem::Metadata, Box<dyn std::error::Error>> {
         todo!()
     }
 }
@@ -156,8 +158,8 @@ mod tests {
     use crate::providers::s3::*;
     use crate::interfaces::filesystem::FileSystem;
 
-    #[test]
-    fn s3_request_works() {
+    #[tokio::test]
+    async fn s3_request_works() {
         let x = S3 {
             credentials: S3Credentials {
                 access_key: String::from("admin"),
@@ -167,13 +169,13 @@ mod tests {
             },
             bucket: String::from("test")
         };
-        let result = x.read_file(ObjectId::new(String::from("hello-world.txt"), String::from("text/plain")));
+        let result = x.read_file(ObjectId::new(String::from("hello-world.txt"), String::from("text/plain"))).await;
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(result.unwrap().to_vec()).unwrap(), String::from("hello world!"));
     }
 
-    #[test]
-    fn s3_list_folder_content() {
+    #[tokio::test]
+    async fn s3_list_folder_content() {
         let x = S3 {
             credentials: S3Credentials {
                 access_key: String::from("admin"),
@@ -184,7 +186,7 @@ mod tests {
             bucket: String::from("test")
         };
 
-        let result = x.list_folder_content(ObjectId::new(String::from("/"), String::from("directory")));
+        let result = x.list_folder_content(ObjectId::new(String::from("/"), String::from("directory"))).await;
 
         assert!(result.is_ok());
 
@@ -194,8 +196,8 @@ mod tests {
         assert_eq!("level1", result.as_ref().unwrap()[1].name);
     }
 
-    #[test]
-    fn s3_list_folder_content_one_level_deep() {
+    #[tokio::test]
+    async fn s3_list_folder_content_one_level_deep() {
         let x = S3 {
             credentials: S3Credentials {
                 access_key: String::from("admin"),
@@ -206,7 +208,7 @@ mod tests {
             bucket: String::from("test")
         };
 
-        let result = x.list_folder_content(ObjectId::new(String::from("/level1/"), String::from("directory")));
+        let result = x.list_folder_content(ObjectId::new(String::from("/level1/"), String::from("directory"))).await;
 
         assert!(result.is_ok());
 
@@ -216,8 +218,8 @@ mod tests {
         assert_eq!("level2", result.as_ref().unwrap()[1].name);
     }
 
-    #[test]
-    fn s3_rename_file() {
+    #[tokio::test]
+    async fn s3_rename_file() {
         let x = S3 {
             credentials: S3Credentials {
                 access_key: String::from("admin"),
@@ -230,13 +232,13 @@ mod tests {
 
         let original_id = ObjectId::new(String::from("/test.txt"), String::from("text/plain"));
 
-        let result = x.rename(original_id, String::from("/test_renamed.txt"));
+        let result = x.rename(original_id, String::from("/test_renamed.txt")).await;
 
         assert!(result.is_ok());
 
         let new_id = ObjectId::new(String::from("/test_renamed.txt"), String::from("text/plain"));
 
-        let file = x.read_file(new_id.clone());
+        let file = x.read_file(new_id.clone()).await;
 
         assert!(file.is_ok());
 
@@ -247,7 +249,7 @@ mod tests {
         dbg!(content.unwrap());
         assert!(content.unwrap() == "Lorem ipsum\n");
 
-        let reverse_rename = x.rename(new_id, String::from("/test.txt"));
+        let reverse_rename = x.rename(new_id, String::from("/test.txt")).await;
 
         assert!(reverse_rename.is_ok());
     }
