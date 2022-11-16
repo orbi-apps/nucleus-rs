@@ -43,9 +43,8 @@ impl FileSystem for NativeFs {
     }
 
     async fn rename(&self, object_id: ObjectId, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
-        let object_id_split: Vec<&str> = object_id.as_str().split("/").collect();
-        let parent_path = object_id_split[..object_id_split.len() - 1].join("/");
-        fs::rename(self.root.clone() + object_id.as_str(), self.root.clone() + parent_path.as_str() + "/" + new_name.as_str())?;
+        let new_path = std::path::Path::new(object_id.as_str()).parent().unwrap().join(new_name);
+        fs::rename(self.root.clone() + object_id.as_str(), self.root.clone() + new_path.to_str().unwrap())?;
         Ok(())
     }
 
@@ -59,7 +58,7 @@ impl FileSystem for NativeFs {
         if file.mime_type == Some("directory".to_string()) {
             fs::create_dir(self.root.clone() + parent_id.as_str() + "/" + file.name.as_str())?;
         } else {
-            let object_id = ObjectId::new(parent_id.to_string() + "/" + file.name.as_str(), parent_id.mime_type());
+            let object_id = ObjectId::new(self.root.clone() + parent_id.as_str() + "/" + file.name.as_str(), parent_id.mime_type());
             self.write_file(object_id, vec![]).await?;
         }
         Ok(())
