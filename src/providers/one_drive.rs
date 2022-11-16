@@ -8,16 +8,18 @@ use oauth2::{
     AuthType, AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge,
     RedirectUrl, Scope, TokenUrl, StandardTokenResponse, EmptyExtraTokenFields, PkceCodeVerifier, TokenResponse, StandardErrorResponse, Client, StandardTokenIntrospectionResponse, StandardRevocableToken, RevocationErrorResponseType,
 };
+use serde::{Serialize, Deserialize};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use oauth2::url::Url;
 
-use crate::interfaces::filesystem::FileSystem;
+use crate::interfaces::filesystem::{FileSystem, ObjectId};
 
 type OneDriveToken = StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>;
 
+#[derive(Serialize, Deserialize)]
 pub struct OneDrive {
-    token: OneDriveToken,
+    token: Option<OneDriveToken>,
     client_id: String
 }
 
@@ -124,8 +126,8 @@ impl OneDrive {
         )
     }
 
-    pub fn fetch_credentials(client_id: String) -> Result<OneDrive, Box<dyn std::error::Error>> {
-        let client = Self::new_client(client_id.clone());
+    pub fn fetch_credentials(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let client = Self::new_client(self.client_id.clone());
     
         // Microsoft Graph supports Proof Key for Code Exchange (PKCE - https://oauth.net/2/pkce/).
         // Create a PKCE code verifier and SHA-256 encode it as a code challenge.
@@ -150,17 +152,19 @@ impl OneDrive {
 
         let token = listen_for_token(client, csrf_state, pkce_code_verifier).expect("Error fetching OneDrive access token");
 
-        Ok(OneDrive { token, client_id })
+        self.token = Some(token);
+
+        Ok(())
     }
 
-    pub fn new (token: OneDriveToken, client_id: String) -> OneDrive {
+    pub fn new (token: Option<OneDriveToken>, client_id: String) -> OneDrive {
         OneDrive { token, client_id }
     }
 
     pub fn refresh_token(&mut self, token: OneDriveToken, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
         let client = Self::new_client(client_id);
         let token = client.exchange_refresh_token(token.refresh_token().unwrap()).request(http_client)?;
-        self.token = token;
+        self.token = Some(token);
 
         Ok(())
     }
@@ -210,7 +214,8 @@ mod tests {
     async fn one_drive_login_works() {
         let client_id_vec = std::fs::read("./sandbox/onedrive").unwrap();
         let client_id = std::str::from_utf8(&client_id_vec).unwrap();
-        let onedrive = OneDrive::fetch_credentials(client_id.to_string()).unwrap();
+        let mut onedrive = OneDrive::new(None, client_id.to_string());
+        onedrive.fetch_credentials().unwrap();
         println!("{:?}", onedrive.token);
     }
 }
