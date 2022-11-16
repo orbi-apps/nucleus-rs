@@ -37,21 +37,22 @@ impl InstalledFlowDelegate for InstalledFlowBrowserDelegate {
     }
 }
 
-struct TokenStorageStrategy {}
+struct TokenStorageStrategy {
+    pub path: String
+}
 
 #[async_trait]
 impl TokenStorage for TokenStorageStrategy {
     async fn set(&self, scopes: &[&str], token: TokenInfo) -> anyhow::Result<()> {
-        let path = format!("./sandbox/google-drive/{}", scopes.join(".").replace("/", "0x2F").replace(":", "0x3A"));
+        let path = self.path.clone() + scopes.join(".").replace("/", "0x2F").replace(":", "0x3A").as_str();
         println!("Writing token to {}", path);
         let contents = json!(&token);
-        dbg!(&contents);
         std::fs::write(path, contents.to_string())?;
         Ok(())
     }
 
     async fn get(&self, target_scopes: &[&str]) -> Option<TokenInfo> {
-        let path = format!("./sandbox/google-drive/{}", target_scopes.join(".").replace("/", "0x2F").replace(":", "0x3A"));
+        let path = self.path.clone() + target_scopes.join(".").replace("/", "0x2F").replace(":", "0x3A").as_str();
         println!("Fetching token from {}", path);
 
         let contents_result = std::fs::read(path);
@@ -69,10 +70,10 @@ impl TokenStorage for TokenStorageStrategy {
 }
 
 impl GoogleDrive {
-    pub async fn new() -> Result<GoogleDrive, Box<dyn std::error::Error>> {
-        let secret = oauth2::read_application_secret("./sandbox/client.json").await.unwrap();
+    pub async fn new(path: String, client_secret: String) -> Result<GoogleDrive, Box<dyn std::error::Error>> {
+        let secret = oauth2::parse_application_secret(client_secret.as_str()).unwrap();
 
-        let storage = Box::new(TokenStorageStrategy {});
+        let storage = Box::new(TokenStorageStrategy { path });
 
         let auth = oauth2::InstalledFlowAuthenticator::builder(
             secret,
@@ -122,7 +123,8 @@ impl FileSystem for GoogleDrive {
     }
 
     async fn list_folder_content(&self, object_id: ObjectId) -> Result<Vec<File>, Box<dyn std::error::Error>> {
-        let response = self.hub.files().list().q(format!("'{}' in parents", object_id.to_string()).as_str()).doit().await?;
+        let id = if object_id.to_string() == "".to_string() {"root".to_string()} else {object_id.to_string()};
+        let response = self.hub.files().list().q(format!("'{}' in parents", id).as_str()).doit().await?;
         
         let files: Vec<File> = response.1.files.unwrap().iter().map(|file| file.to_owned().into()).collect();
         
@@ -136,13 +138,17 @@ impl FileSystem for GoogleDrive {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+    use super::drive3::oauth2;
+
     use crate::interfaces::filesystem::{FileSystem, ObjectId};
 
     use super::GoogleDrive;
 
     #[tokio::test]
     async fn connect_and_list_files() {
-        let drive = GoogleDrive::new().await.unwrap();
+        let secret = json!(oauth2::read_application_secret("./sandbox/client.json").await.unwrap()).to_string();
+        let drive = GoogleDrive::new("./sandbox/google-drive/".to_string(), secret).await.unwrap();
         let object_id = ObjectId::new("root".to_string(), "unknown".to_string());
         let result = drive.list_folder_content(object_id).await.unwrap();
         dbg!(result);
