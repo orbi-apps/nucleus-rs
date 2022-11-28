@@ -1,6 +1,6 @@
 extern crate google_drive3 as drive3;
 use async_trait::async_trait;
-use drive3::oauth2::storage::{TokenStorage, TokenInfo};
+use drive3::oauth2::storage::TokenStorage;
 
 use std::{sync::{Arc, Mutex}, collections::HashMap};
 

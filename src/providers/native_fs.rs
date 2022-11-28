@@ -50,7 +50,7 @@ impl FileSystem for NativeFs {
 
     async fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         let object_id_split: Vec<&str> = object_id.as_str().split("/").collect();
-        fs::rename(object_id.to_string(), new_parent_id.to_string() + "/" + object_id_split[object_id_split.len() - 1])?;
+        fs::rename(self.root.clone() + object_id.as_str(), self.root.clone() + new_parent_id.as_str() + "/" + object_id_split[object_id_split.len() - 1])?;
         Ok(())
     }
 

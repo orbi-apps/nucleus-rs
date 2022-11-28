@@ -1,7 +1,6 @@
 mod auth;
 mod token;
 mod interfaces;
-// mod serialization;
 
 extern crate google_drive3 as drive3;
 
