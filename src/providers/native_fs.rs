@@ -34,7 +34,7 @@ impl FileSystem for NativeFs {
     }
 
     async fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
-        if object_id.mime_type() == "directory".to_string() {
+        if object_id.mime_type() == Some("directory".to_string()) {
             fs::remove_dir(self.root.clone() + object_id.as_str())?;
         } else {
             fs::remove_file(self.root.clone() + object_id.as_str())?;
@@ -89,11 +89,13 @@ impl FileSystem for NativeFs {
 
     async fn get_metadata(&self, object_id: ObjectId) -> Result<crate::interfaces::filesystem::Metadata, Box<dyn std::error::Error>> {
         let metadata = std::fs::metadata(self.root.clone() + object_id.as_str()).unwrap();
+        let name = Path::new(object_id.as_str()).file_name().unwrap().to_str().unwrap().to_string();
+        let open_path = self.root.clone() + object_id.as_str();
         Ok(Metadata {
-            id: object_id.to_string(),
-            name: Path::new(object_id.as_str()).file_name().unwrap().to_str().unwrap().to_string(),
-            mime_type: if metadata.is_dir() { "directory".to_string() } else { "".to_string() },
-            open_path: self.root.clone() + object_id.as_str()
+            id: object_id,
+            name,
+            mime_type: if metadata.is_dir() { Some("directory".to_string()) } else { None },
+            open_path
         })
     }
 }
@@ -108,7 +110,7 @@ mod tests {
         let x = NativeFs {
             root: "./sandbox/".to_string()
         };
-        let object_id = ObjectId::new(String::from("hello-world.txt"), String::from("text/plain"));
+        let object_id = ObjectId::new(String::from("hello-world.txt"), Some(String::from("text/plain")));
         let result = x.read_file(object_id).await;
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(result.unwrap().to_vec()).unwrap(), String::from("hello world!"));
@@ -120,7 +122,7 @@ mod tests {
             root: "./sandbox/".to_string()
         };
 
-        let object_id = ObjectId::new(String::from(""), String::from("directory"));
+        let object_id = ObjectId::new(String::from(""), Some(String::from("directory")));
 
         let result = x.list_folder_content(object_id).await;
 

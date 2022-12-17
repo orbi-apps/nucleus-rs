@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ObjectId {
     path: String,
-    mime_type: String
+    mime_type: Option<String>
 }
 
 impl fmt::Display for ObjectId {
@@ -16,23 +16,23 @@ impl fmt::Display for ObjectId {
 }
 
 impl ObjectId {
-    pub fn new(path: String, mime_type: String) -> Self {
+    pub fn new(path: String, mime_type: Option<String>) -> Self {
         ObjectId { path, mime_type }
     }
 
     pub fn directory(path: String) -> Self {
-        ObjectId { path, mime_type: String::from("directory") }
+        ObjectId { path, mime_type: Some(String::from("directory")) }
     }
 
     pub fn plain_text(path: String) -> Self {
-        ObjectId { path, mime_type: String::from("text/plain") }
+        ObjectId { path, mime_type: Some(String::from("text/plain")) }
     }
 
     pub fn as_str(&self) -> &str {
         self.path.as_str()
     }
 
-    pub fn mime_type(&self) -> String {
+    pub fn mime_type(&self) -> Option<String> {
         self.mime_type.clone()
     }
 }
@@ -44,10 +44,11 @@ pub struct File {
     pub mime_type: Option<String>
 }
 
+#[derive(Debug)]
 pub struct Metadata {
-    pub id: String,
+    pub id: ObjectId,
     pub name: String,
-    pub mime_type: String,
+    pub mime_type: Option<String>,
     pub open_path: String
 }
 

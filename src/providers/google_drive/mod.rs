@@ -31,7 +31,7 @@ mod tests {
     async fn connect_and_list_files() {
         let secret = json!(oauth2::read_application_secret("./sandbox/client.json").await.unwrap()).to_string();
         let drive = GoogleDrive::new(secret, HashMap::new()).await.unwrap();
-        let object_id = ObjectId::new("root".to_string(), "unknown".to_string());
+        let object_id = ObjectId::new("root".to_string(), None);
         let result = drive.list_folder_content(object_id).await.unwrap();
         dbg!(result);
     }

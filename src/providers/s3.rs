@@ -169,7 +169,7 @@ mod tests {
             },
             bucket: String::from("test")
         };
-        let result = x.read_file(ObjectId::new(String::from("hello-world.txt"), String::from("text/plain"))).await;
+        let result = x.read_file(ObjectId::new(String::from("hello-world.txt"), Some(String::from("text/plain")))).await;
         assert!(result.is_ok());
         assert_eq!(String::from_utf8(result.unwrap().to_vec()).unwrap(), String::from("hello world!"));
     }
@@ -186,7 +186,7 @@ mod tests {
             bucket: String::from("test")
         };
 
-        let result = x.list_folder_content(ObjectId::new(String::from("/"), String::from("directory"))).await;
+        let result = x.list_folder_content(ObjectId::new(String::from("/"), Some(String::from("directory")))).await;
 
         assert!(result.is_ok());
 
@@ -208,7 +208,7 @@ mod tests {
             bucket: String::from("test")
         };
 
-        let result = x.list_folder_content(ObjectId::new(String::from("/level1/"), String::from("directory"))).await;
+        let result = x.list_folder_content(ObjectId::new(String::from("/level1/"), Some(String::from("directory")))).await;
 
         assert!(result.is_ok());
 
@@ -230,13 +230,13 @@ mod tests {
             bucket: String::from("test")
         };
 
-        let original_id = ObjectId::new(String::from("/test.txt"), String::from("text/plain"));
+        let original_id = ObjectId::new(String::from("/test.txt"), Some(String::from("text/plain")));
 
         let result = x.rename(original_id, String::from("/test_renamed.txt")).await;
 
         assert!(result.is_ok());
 
-        let new_id = ObjectId::new(String::from("/test_renamed.txt"), String::from("text/plain"));
+        let new_id = ObjectId::new(String::from("/test_renamed.txt"), Some(String::from("text/plain")));
 
         let file = x.read_file(new_id.clone()).await;
 

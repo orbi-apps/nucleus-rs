@@ -1,5 +1,4 @@
 use oauth2::basic::{BasicClient, BasicTokenType, BasicErrorResponseType};
-// Alternatively, this can be `oauth2::curl::http_client` or a custom client.
 use oauth2::reqwest::async_http_client;
 use oauth2::{
     AuthType, AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge,
@@ -9,7 +8,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use oauth2::url::Url;
 
-use super::{OneDriveToken, OneDrive};
+use super::token::{TokenStorage, OneDriveToken};
+use super::{OneDrive};
 
 async fn listen_for_token(client: BasicClient, csrf_state: CsrfToken, pkce_code_verifier: PkceCodeVerifier) -> Result<StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>, ()> {
     // A very naive implementation of the redirect server.
@@ -112,7 +112,7 @@ impl OneDrive {
         )
     }
 
-    pub async fn fetch_credentials(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn fetch_credentials(&self) -> Result<(), Box<dyn std::error::Error>> {
         let client = Self::new_client(self.client_id.clone());
     
         // Microsoft Graph supports Proof Key for Code Exchange (PKCE - https://oauth.net/2/pkce/).
@@ -124,8 +124,9 @@ impl OneDrive {
             .authorize_url(CsrfToken::new_random)
             // This example requests read access to OneDrive.
             .add_scope(Scope::new(
-                "https://graph.microsoft.com/Files.Read".to_string(),
+                "https://graph.microsoft.com/Files.ReadWrite.All".to_string()
             ))
+            .add_scope(Scope::new("offline_access".to_string()))
             .set_pkce_challenge(pkce_code_challenge)
             .url();
     
@@ -138,20 +139,28 @@ impl OneDrive {
 
         let token = listen_for_token(client, csrf_state, pkce_code_verifier).await.expect("Error fetching OneDrive access token");
 
-        self.token = Some(token);
+        self.token.set(Some(token)).await;
 
         Ok(())
     }
 
     pub fn new (token: Option<OneDriveToken>, client_id: String) -> OneDrive {
-        OneDrive { token, client_id }
+        OneDrive { token: TokenStorage::new(token), client_id }
     }
 
-    pub async fn refresh_token(&mut self, token: OneDriveToken, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-        let client = Self::new_client(client_id);
-        let token = client.exchange_refresh_token(token.refresh_token().unwrap()).request_async(async_http_client).await?;
-        self.token = Some(token);
+    pub async fn refresh_token(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let client = Self::new_client(self.client_id.clone());
+        if let Some(refresh_token) = self.token.get().await.clone().unwrap().refresh_token() {
+            let token = client.exchange_refresh_token(refresh_token).request_async(async_http_client).await?;
+            self.token.set(Some(token)).await;
+        } else {
+            self.fetch_credentials().await?;
+        }
 
         Ok(())
+    }
+
+    pub async fn get_token(&self) -> Option<OneDriveToken> {
+        self.token.get().await
     }
 }
