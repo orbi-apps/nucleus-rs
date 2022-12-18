@@ -2,6 +2,8 @@ mod interfaces;
 mod auth;
 pub mod token;
 
+use std::str::FromStr;
+
 use onedrive_api::{ItemId, resource::DriveItem};
 
 use crate::interfaces::filesystem::{ObjectId, File};
@@ -24,7 +26,10 @@ impl From<DriveItem> for File {
         File {
             id: item.id.unwrap().as_str().to_string(),
             name: item.name.unwrap(),
-            mime_type: if item.folder.is_some() { Some("directory".to_string()) } else { None }
+            mime_type: if item.folder.is_some() { Some("directory".to_string()) } else { None },
+            created_at: Some(chrono::DateTime::from_str(item.created_date_time.unwrap().as_str()).unwrap()),
+            modified_at: Some(chrono::DateTime::from_str(item.last_modified_date_time.unwrap().as_str()).unwrap()),
+            size: Some(item.size.unwrap().unsigned_abs())
         }
     }
 }

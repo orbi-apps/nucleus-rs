@@ -81,7 +81,10 @@ impl FileSystem for NativeFs {
                     Some("symlink".to_string())
                 } else {
                     Some("text/plain".to_string())
-                }
+                },
+                created_at: Some(chrono::DateTime::from(entry.metadata().unwrap().created().unwrap())),
+                modified_at: Some(chrono::DateTime::from(entry.metadata().unwrap().modified().unwrap())),
+                size: Some(entry.metadata().unwrap().len())
             });
         }
         Ok(files)

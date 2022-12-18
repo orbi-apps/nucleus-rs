@@ -2,6 +2,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
+use chrono::prelude::{DateTime, Utc};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ObjectId {
@@ -41,7 +42,10 @@ impl ObjectId {
 pub struct File {
     pub id: String,
     pub name: String,
-    pub mime_type: Option<String>
+    pub mime_type: Option<String>,
+    pub modified_at: Option<DateTime<Utc>>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub size: Option<u64>
 }
 
 #[derive(Debug)]

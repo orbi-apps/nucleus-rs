@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use eyre::Result;
 use s3::{creds::Credentials, bucket::Bucket};
@@ -134,7 +136,10 @@ impl FileSystem for S3 {
                         files.push(File {
                             id: path.to_string() + "/" + &name,
                             name: name.to_string(),
-                            mime_type: Some(mime_type.to_string())
+                            mime_type: Some(mime_type.to_string()),
+                            created_at: None,
+                            modified_at: Some(chrono::DateTime::from_str(file.last_modified.as_str()).unwrap()),
+                            size: Some(file.size)
                         })
                     },
                     None => ()

@@ -26,6 +26,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.get_item(item_location).await.unwrap())
                 } else {
                     Err(error)
@@ -56,6 +60,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.new_upload_session(item_location).await?)
                 } else {
                     Err(error)
@@ -115,6 +123,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.delete(item_location).await.unwrap())
                 } else {
                     Err(error)
@@ -144,6 +156,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.move_(item_location, parent_location, None).await.unwrap())
                 } else {
                     Err(error)
@@ -192,6 +208,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.update_item(item_location, &item).await.unwrap())
                 } else {
                     Err(error)
@@ -219,6 +239,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     drive.list_children(item_location).await.unwrap()
                 } else {
                     vec![]
@@ -252,6 +276,10 @@ impl FileSystem for OneDrive {
                 Err(error) => {
                     if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                         self.refresh_token().await?;
+                        let drive = OneDriveApi::new(
+                            self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                            DriveLocation::me(),
+                        );
                         Ok(drive.get_item(item_location).await.unwrap())
                     } else {
                         println!("Got a different error");
@@ -308,6 +336,10 @@ impl FileSystem for OneDrive {
             Err(error) => {
                 if error.status_code() == Some(StatusCode::UNAUTHORIZED) {
                     self.refresh_token().await?;
+                    let drive = OneDriveApi::new(
+                        self.token.get().await.clone().unwrap().access_token().secret(), // Login token to Microsoft Graph.
+                        DriveLocation::me(),
+                    );
                     Ok(drive.get_item(item_location).await.unwrap())
                 } else {
                     Err(error)

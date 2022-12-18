@@ -8,7 +8,14 @@ use super::super::GoogleDrive;
 
 impl From<google_drive3::api::File> for filesystem::File {
     fn from(file: GoogleDriveFile) -> Self {
-        File { id: file.id.unwrap(), name: file.name.unwrap(), mime_type: file.mime_type }
+        File {
+            id: file.id.unwrap(),
+            name: file.name.unwrap(),
+            mime_type: file.mime_type,
+            created_at: file.created_time,
+            modified_at: file.modified_time,
+            size: Some(file.size.unwrap().unsigned_abs())
+        }
     }
 }
 
