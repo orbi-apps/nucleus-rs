@@ -6,13 +6,24 @@ use std::str::FromStr;
 
 use onedrive_api::{ItemId, resource::DriveItem};
 
-use crate::interfaces::filesystem::{ObjectId, File};
+use crate::interfaces::{filesystem::{ObjectId, File, FileSystem}, Provider};
 
 use self::token::TokenStorage;
 
+#[derive(Clone)]
 pub struct OneDrive {
     token: TokenStorage,
     client_id: String
+}
+
+impl Provider for OneDrive {
+    fn as_filesystem(&self) -> Option<&dyn FileSystem> {
+        Some(self)
+    }
+
+    fn as_trash(&self) -> Option<&dyn crate::interfaces::trash::Trash> {
+        Some(self)
+    }
 }
 
 impl From<ObjectId> for ItemId {

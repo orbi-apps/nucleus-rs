@@ -1,10 +1,13 @@
+use std::sync::Arc;
+
 use oauth2::{basic::BasicTokenType, StandardTokenResponse, EmptyExtraTokenFields};
 use tokio::sync::Mutex;
 
 pub type OneDriveToken = StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>;
 
+#[derive(Clone)]
 pub struct TokenStorage {
-    token: Mutex<Option<OneDriveToken>>
+    token: Arc<Mutex<Option<OneDriveToken>>>
 }
 
 impl TokenStorage {
@@ -18,6 +21,6 @@ impl TokenStorage {
     }
 
     pub fn new(token: Option<OneDriveToken>) -> Self {
-        TokenStorage { token: Mutex::new(token) }
+        TokenStorage { token: Arc::new(Mutex::new(token)) }
     }
 }

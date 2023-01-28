@@ -8,11 +8,25 @@ use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 use drive3::{DriveHub, hyper, hyper_rustls, oauth2::storage::TokenInfo};
 
+use crate::interfaces::{filesystem::FileSystem, Provider};
+
 pub type Token = TokenInfo;
 
+#[derive(Clone)]
 pub struct GoogleDrive {
     hub: DriveHub<HttpsConnector<HttpConnector>>,
     tokens: token::MtTokenMap,
+}
+
+impl Provider for GoogleDrive {
+    fn as_filesystem(& self) -> Option<& dyn FileSystem> {
+        Some(self)
+    }
+
+    fn as_trash(&self) -> Option<& dyn crate::interfaces::trash::Trash> {
+        // Some(self)
+        todo!()
+    }
 }
 
 

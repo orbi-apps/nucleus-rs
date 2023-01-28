@@ -14,7 +14,7 @@ impl From<google_drive3::api::File> for filesystem::File {
             mime_type: file.mime_type,
             created_at: file.created_time,
             modified_at: file.modified_time,
-            size: Some(file.size.unwrap().unsigned_abs())
+            size: Some(file.size.unwrap_or(0).unsigned_abs())
         }
     }
 }

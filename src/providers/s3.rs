@@ -5,9 +5,10 @@ use eyre::Result;
 use s3::{creds::Credentials, bucket::Bucket};
 use serde::{Serialize, Deserialize};
 
-use crate::interfaces::filesystem::{FileSystem, ObjectId, File};
+use crate::interfaces::{filesystem::{FileSystem, ObjectId, File}, Provider};
 
-#[derive(Debug, Serialize, Deserialize)]
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct S3Credentials {
     pub region: String,
     pub endpoint: String,
@@ -15,18 +16,25 @@ pub struct S3Credentials {
     pub secret_key: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct S3 {
     pub credentials: S3Credentials,
     pub bucket: String,
 }
 
 impl S3 {
-    pub fn new(bucket: String, region: String, endpoint: String, access_key: String, secret_key: String) -> S3{
-        S3 {
-            credentials: S3Credentials { region, endpoint, access_key, secret_key },
-            bucket,
-        }
+    pub fn new(bucket: String, credentials: S3Credentials) -> S3 {
+        S3 { credentials, bucket }
+    }
+}
+
+impl Provider for S3 {
+    fn as_filesystem(&self) -> Option<&dyn crate::interfaces::filesystem::FileSystem> {
+        Some(self)
+    }
+
+    fn as_trash(&self) -> Option<&dyn crate::interfaces::trash::Trash> {
+        None
     }
 }
 
@@ -51,15 +59,15 @@ impl FileSystem for S3 {
         Ok(val.bytes().to_vec())
     }
 
-    async fn write_file(&self, object_id: ObjectId, content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+    async fn write_file(&self, _object_id: ObjectId, _content: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    async fn delete(&self, object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn delete(&self, _object_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
-    async fn create(&self, parent_id: ObjectId, file: File) -> Result<(), Box<dyn std::error::Error>> {
+    async fn create(&self, _parent_id: ObjectId, _file: File) -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     }
 
@@ -92,7 +100,7 @@ impl FileSystem for S3 {
         Ok(())
     }
 
-    async fn move_to(&self, object_id: ObjectId, new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+    async fn move_to(&self, _object_id: ObjectId, _new_parent_id: ObjectId) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
@@ -153,7 +161,7 @@ impl FileSystem for S3 {
         Ok(files)
     }
 
-    async fn get_metadata(&self, object_id: ObjectId) -> Result<crate::interfaces::filesystem::Metadata, Box<dyn std::error::Error>> {
+    async fn get_metadata(&self, _object_id: ObjectId) -> Result<crate::interfaces::filesystem::Metadata, Box<dyn std::error::Error>> {
         todo!()
     }
 }

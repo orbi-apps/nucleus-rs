@@ -2,11 +2,13 @@ use async_trait::async_trait;
 use eyre::Result;
 use std::{fs, path::Path};
 use serde::{Serialize, Deserialize};
+use trash;
+use std::fs::{File as NativeFile};
 
-use crate::interfaces::filesystem::{FileSystem, ObjectId, File, Metadata};
+use crate::interfaces::{filesystem::{FileSystem, ObjectId, File, Metadata}, Provider, trash::Trash};
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NativeFs {
     pub root: String,
 }
@@ -16,6 +18,16 @@ impl NativeFs {
       NativeFs {
         root
       }
+    }
+}
+
+impl Provider for NativeFs {
+    fn as_filesystem(&self) -> Option<&dyn crate::interfaces::filesystem::FileSystem> {
+        Some(self)
+    }
+
+    fn as_trash(&self) -> Option<&dyn crate::interfaces::trash::Trash> {
+        Some(self)
     }
 }
 
@@ -58,8 +70,7 @@ impl FileSystem for NativeFs {
         if file.mime_type == Some("directory".to_string()) {
             fs::create_dir(self.root.clone() + parent_id.as_str() + "/" + file.name.as_str())?;
         } else {
-            let object_id = ObjectId::new(self.root.clone() + parent_id.as_str() + "/" + file.name.as_str(), parent_id.mime_type());
-            self.write_file(object_id, vec![]).await?;
+            NativeFile::create(self.root.clone() + parent_id.as_str() + "/" + file.name.as_str())?;
         }
         Ok(())
     }
@@ -102,6 +113,16 @@ impl FileSystem for NativeFs {
         })
     }
 }
+
+#[async_trait]
+impl Trash for NativeFs {
+    async fn send_to_trash(&self, object_id: crate::interfaces::filesystem::ObjectId) -> Result<(), Box<dyn std::error::Error>> {
+        dbg!(self.root.clone() + object_id.as_str());
+        trash::delete(self.root.clone() + object_id.as_str()).unwrap();
+        Ok(())
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
