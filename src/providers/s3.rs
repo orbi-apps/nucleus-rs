@@ -142,7 +142,7 @@ impl FileSystem for S3 {
                     Some(name) => {
                         let mime_type = if w.contains("/") {"directory"} else {"file"};
                         files.push(File {
-                            id: path.to_string() + "/" + &name,
+                            id: ObjectId::new(path.to_string() + "/" + &name, None),
                             name: name.to_string(),
                             mime_type: Some(mime_type.to_string()),
                             created_at: None,

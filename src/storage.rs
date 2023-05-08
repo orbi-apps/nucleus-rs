@@ -7,7 +7,9 @@ use crate::providers::{s3::S3, google_drive::GoogleDrive, native_fs::NativeFs};
 use google_drive3::oauth2::storage::TokenInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
+use std::str::FromStr;
 use directories::ProjectDirs;
 use std::sync::Arc;
 
@@ -20,20 +22,53 @@ impl Hash for ArbitraryData {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProvidersOptions {
+    pub google_api_key: Option<String>,
+    pub onedrive_api_key: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Copy)]
+pub enum ProviderType {
+    GoogleDrive,
+    OneDrive,
+    S3,
+    NativeFs,
+}
+
+impl FromStr for ProviderType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "googledrive" => Ok(ProviderType::GoogleDrive),
+            "onedrive" => Ok(ProviderType::OneDrive),
+            "s3" => Ok(ProviderType::S3),
+            "nativefs" => Ok(ProviderType::NativeFs),
+            _ => Err(())
+        }
+    }
+}
+
+impl fmt::Display for ProviderType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Hash, Eq, PartialEq, Clone)]
 pub struct ProviderId {
     pub id: String,
-    pub provider_type: String,
+    pub provider_type: ProviderType,
 }
 
 pub struct ProvidersMap {
     providers : HashMap<ProviderId, Arc<dyn Provider + Sync + Send>>,
-    keys : HashMap<String, String>
+    keys : ProvidersOptions
 }
 
 impl ProvidersMap {
-    pub async fn new(keys: HashMap<String, String>) -> ProvidersMap {
+    pub async fn new(keys: ProvidersOptions) -> ProvidersMap {
         let providers: HashMap<ProviderId, Arc<dyn Provider + Sync + Send>> = HashMap::new();
 
         ProvidersMap {providers, keys}
@@ -48,7 +83,7 @@ impl ProvidersMap {
 
     pub async fn add_google_drive(&mut self, provider_id: ProviderId, tokens: HashMap<String, TokenInfo>) -> Result<(), ()> {
         dbg!(&tokens);
-        let google_drive = GoogleDrive::new(self.keys.get("google_drive").unwrap().to_string(), tokens).await.unwrap();
+        let google_drive = GoogleDrive::new(self.keys.google_api_key.clone().unwrap().to_string(), tokens).await.unwrap();
         google_drive.list_folder_content(ObjectId::directory("".to_string())).await.unwrap();
 
         self.save(&provider_id, serde_json::to_value(&google_drive.tokens_map()).unwrap()).await;
@@ -59,7 +94,7 @@ impl ProvidersMap {
 
     pub async fn add_onedrive(&mut self, provider_id: ProviderId, token: Option<OneDriveToken>) -> Result<(), ()> {
         let should_fetch_credentials = token.is_none();
-        let onedrive = OneDrive::new(token, self.keys.get("one_drive").unwrap().to_string());
+        let onedrive = OneDrive::new(token, self.keys.onedrive_api_key.clone().unwrap().to_string());
 
         if should_fetch_credentials {
             onedrive.fetch_credentials().await.unwrap();
@@ -94,10 +129,10 @@ impl ProvidersMap {
         if let Some(proj_dirs) = ProjectDirs::from("", "Orbital", "Files") {
             let path = (proj_dirs.data_dir().to_string_lossy() + "/").to_string();
     
-            let file_name = provider_id.id.clone() + "." + provider_id.provider_type.as_str();
+            let file_name = provider_id.id.clone() + "." + provider_id.provider_type.to_string().as_str();
     
             let file: File = File {
-                id: path.clone() + file_name.as_str(),
+                id: ObjectId::plain_text(path.clone() + file_name.as_str()),
                 name: file_name.clone(),
                 mime_type: Some("text/plain".to_string()),
                 created_at: Some(chrono::Utc::now()),
@@ -107,31 +142,32 @@ impl ProvidersMap {
     
             storage.create(ObjectId::plain_text(path.clone()), file.clone()).await.expect(format!("Unable to create provider {}", path.clone() + file_name.as_str()).as_str());
     
-            storage.write_file(ObjectId::plain_text(file.id), value.to_string().as_bytes().to_vec()).await.expect("Unable to write new provider to storage");
+            storage.write_file(file.id, value.to_string().as_bytes().to_vec()).await.expect("Unable to write new provider to storage");
         }
     }
 
     pub async fn add_provider(&mut self, provider_id: ProviderId, provider_infos: serde_json::Value) -> Result<(), ()> {
-        match provider_id.provider_type.as_str() {
-            "NativeFs" => {
+        println!("----");
+        match provider_id.provider_type {
+            ProviderType::NativeFs => {
                 let root: String = serde_json::from_value(provider_infos).unwrap();
                 self.add_native_fs(provider_id, root).await.unwrap();
             },
-            "Google" => {
+            ProviderType::GoogleDrive => {
                 if let Ok(tokens) = serde_json::from_value(provider_infos) {
                     self.add_google_drive(provider_id, tokens).await.unwrap();
                 } else {
                     self.add_google_drive(provider_id, HashMap::new()).await.unwrap();
                 }
             },
-            "OneDrive" => {
+            ProviderType::OneDrive => {
                 if let Ok(token) = serde_json::from_value(provider_infos) {
                     self.add_onedrive(provider_id, token).await.unwrap();
                 } else {
                     self.add_onedrive(provider_id, None).await.unwrap();
                 }
             },
-            "S3" => {
+            ProviderType::S3 => {
                 let credentials : S3Credentials = serde_json::from_value(provider_infos.get("credentials").unwrap().to_owned()).unwrap();
                 let bucket : String = serde_json::from_value(provider_infos.get("bucket").unwrap().to_owned()).unwrap();
                 self.add_s3(provider_id, bucket, credentials).await.unwrap();
@@ -147,7 +183,7 @@ impl ProvidersMap {
             let storage = NativeFs { root : "".to_string() };
             let path = (proj_dirs.data_dir().to_string_lossy() + "/").to_string();
     
-            storage.delete(ObjectId::plain_text(path + provider_id.id.as_str() + "." + provider_id.provider_type.as_str())).await.expect("Unable to remove provider.");
+            storage.delete(ObjectId::plain_text(path + provider_id.id.as_str() + "." + provider_id.provider_type.to_string().as_str())).await.expect("Unable to remove provider.");
         }
 
         ProvidersMap::new(self.keys.clone()).await

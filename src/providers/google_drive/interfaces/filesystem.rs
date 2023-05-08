@@ -8,8 +8,16 @@ use super::super::GoogleDrive;
 
 impl From<google_drive3::api::File> for filesystem::File {
     fn from(file: GoogleDriveFile) -> Self {
+        let mime_type = file.mime_type.clone();
+        let id;
+
+        if mime_type.clone().unwrap_or_default() == "application/vnd.google-apps.folder" {
+            id = ObjectId::directory(file.id.unwrap());
+        } else {
+            id = ObjectId::new(file.id.unwrap(), file.mime_type.clone());
+        }
         File {
-            id: file.id.unwrap(),
+            id,
             name: file.name.unwrap(),
             mime_type: file.mime_type,
             created_at: file.created_time,

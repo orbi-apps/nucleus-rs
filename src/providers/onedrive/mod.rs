@@ -35,7 +35,7 @@ impl From<ObjectId> for ItemId {
 impl From<DriveItem> for File {
     fn from(item: DriveItem) -> Self {
         File {
-            id: item.id.unwrap().as_str().to_string(),
+            id: ObjectId::new(item.id.unwrap().as_str().to_string(), None),
             name: item.name.unwrap(),
             mime_type: if item.folder.is_some() { Some("directory".to_string()) } else { None },
             created_at: Some(chrono::DateTime::from_str(item.created_date_time.unwrap().as_str()).unwrap()),

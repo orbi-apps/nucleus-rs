@@ -12,7 +12,8 @@ chrono = "0.4.23"
 directories = "4.0.1"
 downcast-trait = "0.1.0"
 eyre = "0.6.8"
-google-drive3 = { git = "https://github.com/Byron/google-apis-rs" }
+google-drive3 = "5.0.2"
+# google-drive3 = { git = "https://github.com/Byron/google-apis-rs" }
 oauth2 = "4.2.3"
 onedrive-api = "0.9.0"
 open = "3.0.3"

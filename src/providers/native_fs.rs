@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{Utc, DateTime};
 use eyre::Result;
 use std::{fs, path::Path};
 use serde::{Serialize, Deserialize};
@@ -83,18 +84,36 @@ impl FileSystem for NativeFs {
         for file in dir_content {
             let entry = file.unwrap();
             let full_path = entry.path().as_os_str().to_str().unwrap().to_string();
+            let mime_type = if entry.metadata().unwrap().is_dir() {
+                Some("directory".to_string())
+            } else if entry.metadata().unwrap().is_symlink() {
+                Some("symlink".to_string())
+            } else {
+                Some("text/plain".to_string())
+            };
+
+            let created_at;
+
+            if let Ok(time) = entry.metadata().unwrap().created() {
+                created_at = Some(chrono::DateTime::from(time));
+            } else {
+                created_at = None;
+            }
+
+            let modified_at;
+
+            if let Ok(time) = entry.metadata().unwrap().modified() {
+                modified_at = Some(chrono::DateTime::from(time));
+            } else {
+                modified_at = None;
+            }
+
             files.push(File {
-                id: full_path.strip_prefix(&self.root.clone()).unwrap().to_string(),
+                id: ObjectId::new(full_path.strip_prefix(&self.root.clone()).unwrap().to_string(), mime_type.clone()),
                 name: entry.file_name().to_string_lossy().to_string(),
-                mime_type: if entry.metadata().unwrap().is_dir() {
-                    Some("directory".to_string())
-                } else if entry.metadata().unwrap().is_symlink() {
-                    Some("symlink".to_string())
-                } else {
-                    Some("text/plain".to_string())
-                },
-                created_at: Some(chrono::DateTime::from(entry.metadata().unwrap().created().unwrap())),
-                modified_at: Some(chrono::DateTime::from(entry.metadata().unwrap().modified().unwrap())),
+                mime_type,
+                created_at,
+                modified_at,
                 size: Some(entry.metadata().unwrap().len())
             });
         }

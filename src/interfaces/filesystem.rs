@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use chrono::prelude::{DateTime, Utc};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ObjectId {
     path: String,
     mime_type: Option<String>
@@ -19,6 +19,10 @@ impl fmt::Display for ObjectId {
 impl ObjectId {
     pub fn new(path: String, mime_type: Option<String>) -> Self {
         ObjectId { path, mime_type }
+    }
+
+    pub fn root() -> Self {
+        ObjectId { path: "".to_string(), mime_type: Some(String::from("directory")) }
     }
 
     pub fn directory(path: String) -> Self {
@@ -36,11 +40,15 @@ impl ObjectId {
     pub fn mime_type(&self) -> Option<String> {
         self.mime_type.clone()
     }
+
+    pub fn is_directory(&self) -> bool {
+        self.mime_type == Some(String::from("directory"))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct File {
-    pub id: String,
+    pub id: ObjectId,
     pub name: String,
     pub mime_type: Option<String>,
     pub modified_at: Option<DateTime<Utc>>,
